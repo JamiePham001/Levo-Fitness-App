@@ -1,0 +1,27 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths: [backend/**, tests/**, .github/workflows/backend.yml]
+  pull_request:
+    paths: [backend/**, tests/**, .github/workflows/backend.yml]
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore
+      # Formatting (whitespace + .editorconfig style rules)
+      - run: dotnet format --verify-no-changes --no-restore
+      # Lint + type check: compiler/analyzer warnings (incl. nullable) are errors via csproj
+      - run: dotnet build --no-restore
+      - run: dotnet test ../tests/backend.Tests
