@@ -1,0 +1,9 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+
+[Database/Migrations/*.cs]
+generated_code = true
