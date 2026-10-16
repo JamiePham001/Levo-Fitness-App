@@ -1,4 +1,3 @@
-namespace backend.Entities.User;
+namespace backend.Entities.Users;
 
-public record UserRegularRegisterRequest(Guid id, string username, string email, Gender gender, double? weight);
-public record UserOAuthRegisterRequest(Guid id, string username, string email, string avatarUrl, string provider, Gender gender, double? weight);
+public record UserSync(Guid Id, Gender Gender, double Weight, Measurement Measurement, DateTime ClientUpdateAt);

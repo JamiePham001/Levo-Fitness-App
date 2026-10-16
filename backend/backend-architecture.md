@@ -15,11 +15,43 @@ ASP.NET Core (.NET 10) minimal API, EF Core + Npgsql on Postgres (Supabase in pr
 
 ## Data model
 
-- `SyncEntity` (base class) carries the sync fields: `ClientUpdateAt` (device clock), `ServerUpdateAt` (server-stamped), `DeletedAt` (tombstone), `UpdatedByDeviceId`.
-- `Goal : SyncEntity` has a client-generated `Id` (so it can be created offline) and a `UserId` owner.
-- `User` is server-owned and is not synced. It keeps its own targeted methods.
-- Enums are stored as strings. All timestamps are `timestamptz` and must be UTC.
-- Indexes on `Goals`: `(UserId, ServerUpdateAt)` for the pull, and a filtered `(UserId, DeletedAt) WHERE DeletedAt IS NOT NULL` for the tombstone purge.
+- `SyncEntity` (base class) carries the sync fields: `ClientUpdateAt` (device clock, clamped), `ServerUpdateAt` (server-stamped), `DeletedAt` (tombstone), `UpdatedByDeviceId`. All have private setters. Only `BeginSync(clientUpdateAt, deletedAt, deviceId, now)` writes them: it rejects an empty device id or missing timestamp, clamps a future client timestamp to `now + 5 min`, normalises to UTC, applies last-write-wins, and sets the tombstone. Entities never assign sync fields themselves, so none can forget the tombstone.
+- `Guard` holds shared validation. Text is trimmed and length-checked against the column, numbers must be finite (NaN and infinity pass a plain `> 0` check), and enums are checked with `Enum.IsDefined`, never `== default`, because the default value is a valid member.
+- Enums are stored as strings. All timestamps are `timestamptz` and must be UTC. `Username` and `Email` are `citext` (case-insensitive); the `citext` extension is created by the migration.
+- Indexes on every synced table: `(UserId, ServerUpdateAt)` for the pull, and a filtered `(UserId, DeletedAt) WHERE DeletedAt IS NOT NULL` for the tombstone purge.
+- Namespaces are plural (`Goals`, `Users`, `Programs`, ...) while folders stay singular. A namespace named after its class (`Goal.Goal`) makes the bare type name ambiguous.
+- `Program` collides with the compiler-generated top-level `Program` class. Alias it (`using ProgramEntity = backend.Entities.Programs.Program;`) wherever both are in scope, including `WebApplicationFactory<Program>` in future integration tests.
+
+### Entities
+
+Synced (`: SyncEntity`, client-generated `Id`, `UserId` owner, `Create` + whole-snapshot `ApplySync`):
+
+| Entity | Parent | Notes |
+|---|---|---|
+| `User` | none | `Id` is the Supabase user id. Sync only touches `Gender`, `Weight`, `Measurement`. Username, email, provider, avatar and `Role` are server-owned, and sync can never tombstone a user. |
+| `Goal` | none | |
+| `Movement` | none | Keywords are trimmed, lower-cased, de-duplicated, max 20. |
+| `Program` | none | |
+| `ProgramBlock` | `Program` | Name is optional. |
+| `Workout` | `ProgramBlock` (optional) | `BlockId` is null for a workout outside any program. |
+| `Exercise` | `Workout` | `MovementId` is a soft reference (no foreign key) and `Name` is a snapshot, so purging a movement tombstone never breaks exercise history. |
+| `ExerciseSet` | `Exercise` | `Order` sequences sets. Weight, reps and RIR are nullable for planned sets. RIR is 0 to 10 and rest time 0 to 3600 seconds. |
+
+A parent id is fixed when the record is created. `ApplySync` throws if a snapshot names a different parent.
+
+Online-only (not synced, created through ordinary endpoints, `Create(..., now)`, server-generated ids):
+
+- `Friendship`: only the receiver can `Accept` a pending request; either participant can `Block`; the blocker is recorded in `BlockedById`. Cancel, decline, unfriend and unblock all delete the row, and `CanRemove(actorId)` says whether a caller may (a block can only be lifted by the blocker). A friendship is unique per pair in either direction (expression index `UX_Friendships_Pair` on `LEAST/GREATEST`, created by raw SQL in the migration).
+- `ProgramShare`: `ShareAccess` is `Download` or `Collab`. Unique per `(ProgramId, ReceiverId)`. Revoking deletes the row.
+- `Notification`: an inbox pointer (`ReceiverId`, `SenderId`, `Type`, `TargetId`, `ReadAt`). State lives on the target. Unique per `(ReceiverId, Type, TargetId)` so a retried request cannot duplicate it. Read notifications older than 30 days are deleted when the receiver fetches their inbox.
+
+### Rules the sync handler must enforce
+
+These are not expressible in the entities:
+
+- **Parent ownership.** Before creating a child (block, workout, exercise, set), check that the parent row exists and `parent.UserId == sub`. Foreign keys only prove the parent exists, so without this a client could attach records to another user's parent.
+- **Tombstone cascade.** The client must tombstone children together with their parent. A purge hard-deletes an expired parent and the database cascades to its children, so any child without its own tombstone would disappear without other devices ever learning of it.
+- **Apple and OAuth profile gaps.** Apple may withhold name and email. Do not rely on the provider for a username.
 
 ## Sync
 
@@ -69,9 +101,9 @@ POST /sync
 
 ### Status
 
-Done: `SyncEntity.BeginSync`, `Goal.Create` / `Goal.ApplySync` (with unit tests), the DbContext, entity configuration and the initial migration.
+Done: `SyncEntity.BeginSync` (last-write-wins, clamping, UTC normalisation), `Create` / `ApplySync` for every synced entity, the online-only entities, the DbContext and its migrations (`Initial`, `AddRemainingEntities`), and unit tests for all of it.
 
-Not yet built: the `Features/Sync` endpoint and its handler, `ClientUpdateAt` clamping and UTC normalisation, JWT validation, the pull query, the purge, the stale-device check, and integration tests against a real Postgres.
+Not yet built: the `Features/Sync` endpoint and its handler (including the parent-ownership checks above), JWT validation, the pull query, the purge, the stale-device check, the online endpoints (friends, shares, notifications), and integration tests against a real Postgres. The migrations have been generated and scripted but not applied to a live database.
 
 ## Database
 

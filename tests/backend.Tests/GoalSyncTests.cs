@@ -1,5 +1,5 @@
-using backend.Entities.Goal;
-using GoalEntity = backend.Entities.Goal.Goal;
+using backend.Entities.Goals;
+using GoalEntity = backend.Entities.Goals.Goal;
 
 namespace backend.Tests;
 
@@ -145,4 +145,18 @@ public class GoalSyncTests
         Assert.Equal(T0, goal.ClientUpdateAt);
         Assert.Equal(DeviceA, goal.UpdatedByDeviceId);
     }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void ApplySync_RejectsNonFiniteWeight(double weight)
+        => Assert.Throws<ArgumentException>(() => GoalEntity.Create(UserId, Dto(weight: weight), DeviceA, T0));
+
+    [Fact]
+    public void ApplySync_RejectsNameLongerThanColumn()
+        => Assert.Throws<ArgumentException>(() => GoalEntity.Create(UserId, Dto(name: new string('a', 101)), DeviceA, T0));
+
+    [Fact]
+    public void Create_AcceptsLevelNone()
+        => Assert.Equal(Level.None, GoalEntity.Create(UserId, Dto(level: Level.None), DeviceA, T0).Level);
 }
