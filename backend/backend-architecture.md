@@ -13,9 +13,9 @@ ASP.NET Core (.NET 10) minimal API, EF Core + Npgsql on Postgres (Supabase in pr
 - Until the profile row exists, other endpoints must return a distinct "profile incomplete" response so the client can send the user back to the username step.
 - Configuration lives in user secrets locally (read only when `ASPNETCORE_ENVIRONMENT=Development`, which `launchSettings.json` sets; `dotnet run --no-launch-profile` runs as Production and sees none of them):
   - `SupaBase:ConnectionString`: a `postgresql://` URI or an Npgsql keyword string. URIs are converted by `PostgresConnectionString.Normalize` (SSL required).
-  - `SupaBase:SignatureKey`: the project's JWT secret (HS256), used as raw UTF-8 bytes.
-  - `SupaBase:ValidIssuers`: `https://<project>.supabase.co/auth/v1`; comma-separate several.
-- Token validation is `AddSupabaseAuth` in `Features/Auth`: signature, issuer, audience `authenticated` and lifetime (no clock skew) are all required; `MapInboundClaims` is off so the user id is the `sub` claim. If the project moves to asymmetric signing keys (ES256/RS256), switch to the JWKS endpoint instead of a shared secret.
+  - `SupaBase:ValidIssuers`: `https://<project>.supabase.co/auth/v1`; comma-separate several. The first one also locates the signing keys.
+- Token validation is `AddSupabaseAuth` in `Features/Auth`. The project signs with an asymmetric key (ES256, P-256), so no secret is stored: the public keys are downloaded from `<issuer>/.well-known/jwks.json`, cached for an hour, and refreshed when a token names an unknown key, so key rotation needs no change here. Only ES256 is accepted (blocking `none` and HS256 algorithm-confusion tokens), and signature, issuer, audience `authenticated` and lifetime (no clock skew) are all required. `MapInboundClaims` is off so the user id is the `sub` claim.
+- The `x` and `y` values on Supabase's JWT Signing Keys page are the public key coordinates and are not secrets or HMAC keys; they are not used here because the JWKS endpoint serves the same key.
 - Supabase's direct connection host (`db.<ref>.supabase.co`) is IPv6-only. From IPv4-only networks, and from AWS Lambda unless it is set up for IPv6, use the pooler connection string (`aws-0-<region>.pooler.supabase.com`, user `postgres.<ref>`; port 5432 session mode or 6543 transaction mode).
 
 ## Data model
