@@ -11,7 +11,12 @@ ASP.NET Core (.NET 10) minimal API, EF Core + Npgsql on Postgres (Supabase in pr
 - Signup: client signs in with Google/Apple, prompts for a unique username, then `POST`s the username with the JWT in the `Authorization: Bearer` header. The backend takes `id`, `email`, provider (`app_metadata.provider`) and avatar (`user_metadata.avatar_url`, may be missing for Apple) from the token and the username from the body. Username uniqueness is enforced by the unique index; a violation returns 409.
 - The owner of any row is always the JWT `sub`, never a value from the request body.
 - Until the profile row exists, other endpoints must return a distinct "profile incomplete" response so the client can send the user back to the username step.
-- Connection string: user secrets key `ConnectionStrings:Default` (`dotnet user-secrets set "ConnectionStrings:Default" "..."` from `backend/`).
+- Configuration lives in user secrets locally (read only when `ASPNETCORE_ENVIRONMENT=Development`, which `launchSettings.json` sets; `dotnet run --no-launch-profile` runs as Production and sees none of them):
+  - `SupaBase:ConnectionString`: a `postgresql://` URI or an Npgsql keyword string. URIs are converted by `PostgresConnectionString.Normalize` (SSL required).
+  - `SupaBase:SignatureKey`: the project's JWT secret (HS256), used as raw UTF-8 bytes.
+  - `SupaBase:ValidIssuers`: `https://<project>.supabase.co/auth/v1`; comma-separate several.
+- Token validation is `AddSupabaseAuth` in `Features/Auth`: signature, issuer, audience `authenticated` and lifetime (no clock skew) are all required; `MapInboundClaims` is off so the user id is the `sub` claim. If the project moves to asymmetric signing keys (ES256/RS256), switch to the JWKS endpoint instead of a shared secret.
+- Supabase's direct connection host (`db.<ref>.supabase.co`) is IPv6-only. From IPv4-only networks, and from AWS Lambda unless it is set up for IPv6, use the pooler connection string (`aws-0-<region>.pooler.supabase.com`, user `postgres.<ref>`; port 5432 session mode or 6543 transaction mode).
 
 ## Data model
 

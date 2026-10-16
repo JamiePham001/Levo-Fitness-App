@@ -1,40 +1,24 @@
 
 using backend.Database;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using backend.Features.Auth;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Connection string comes from user secrets locally: dotnet user-secrets set "ConnectionStrings:Default" "<npgsql connection string>"
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? throw new InvalidOperationException("ConnectionStrings:Default is not set.");
-builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+// Secrets come from user secrets locally, for example:
+//   dotnet user-secrets set "SupaBase:ConnectionString" "<postgresql:// or Npgsql connection string>"
+//   dotnet user-secrets set "SupaBase:SignatureKey" "<project JWT secret>"
+//   dotnet user-secrets set "SupaBase:ValidIssuers" "https://<project>.supabase.co/auth/v1"
+var connectionString = builder.Configuration["SupaBase:ConnectionString"]
+    ?? throw new InvalidOperationException("SupaBase:ConnectionString is not set.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(PostgresConnectionString.Normalize(connectionString)));
 
-// Supabase JWT validation. Set via user secrets locally:
-//   dotnet user-secrets set "Supabase:JwtSecret" "<project JWT secret>"
-//   dotnet user-secrets set "Supabase:Issuer" "https://<project>.supabase.co/auth/v1"
-var jwtSecret = builder.Configuration["Supabase:JwtSecret"]
-    ?? throw new InvalidOperationException("Supabase:JwtSecret is not set.");
-var jwtIssuer = builder.Configuration["Supabase:Issuer"]
-    ?? throw new InvalidOperationException("Supabase:Issuer is not set.");
+var signatureKey = builder.Configuration["SupaBase:SignatureKey"]
+    ?? throw new InvalidOperationException("SupaBase:SignatureKey is not set.");
+var validIssuers = builder.Configuration["SupaBase:ValidIssuers"]
+    ?? throw new InvalidOperationException("SupaBase:ValidIssuers is not set.");
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
-{
-    o.MapInboundClaims = false; // keep the raw "sub" claim instead of remapping it
-    o.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-        ValidateIssuer = true,
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = true,
-        ValidAudience = "authenticated",
-        ValidateLifetime = true
-    };
-});
-builder.Services.AddAuthorization();
+builder.Services.AddSupabaseAuth(signatureKey, validIssuers);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
