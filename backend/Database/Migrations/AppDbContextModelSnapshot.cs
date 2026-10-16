@@ -363,7 +363,7 @@ namespace backend.Database.Migrations
                     b.ToTable("ProgramShares");
                 });
 
-            modelBuilder.Entity("backend.Entities.Programs.Program", b =>
+            modelBuilder.Entity("backend.Entities.Programs.TrainingProgram", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
@@ -474,8 +474,15 @@ namespace backend.Database.Migrations
                     b.Property<DateTime>("ClientUpdateAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("Order")
                         .HasColumnType("integer");
@@ -581,7 +588,7 @@ namespace backend.Database.Migrations
 
             modelBuilder.Entity("backend.Entities.ProgramBlocks.ProgramBlock", b =>
                 {
-                    b.HasOne("backend.Entities.Programs.Program", null)
+                    b.HasOne("backend.Entities.Programs.TrainingProgram", null)
                         .WithMany()
                         .HasForeignKey("ProgramId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -596,7 +603,7 @@ namespace backend.Database.Migrations
 
             modelBuilder.Entity("backend.Entities.ProgramShares.ProgramShare", b =>
                 {
-                    b.HasOne("backend.Entities.Programs.Program", null)
+                    b.HasOne("backend.Entities.Programs.TrainingProgram", null)
                         .WithMany()
                         .HasForeignKey("ProgramId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -615,7 +622,7 @@ namespace backend.Database.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("backend.Entities.Programs.Program", b =>
+            modelBuilder.Entity("backend.Entities.Programs.TrainingProgram", b =>
                 {
                     b.HasOne("backend.Entities.Users.User", null)
                         .WithMany()

@@ -20,7 +20,7 @@ ASP.NET Core (.NET 10) minimal API, EF Core + Npgsql on Postgres (Supabase in pr
 - Enums are stored as strings. All timestamps are `timestamptz` and must be UTC. `Username` and `Email` are `citext` (case-insensitive); the `citext` extension is created by the migration.
 - Indexes on every synced table: `(UserId, ServerUpdateAt)` for the pull, and a filtered `(UserId, DeletedAt) WHERE DeletedAt IS NOT NULL` for the tombstone purge.
 - Namespaces are plural (`Goals`, `Users`, `Programs`, ...) while folders stay singular. A namespace named after its class (`Goal.Goal`) makes the bare type name ambiguous.
-- `Program` collides with the compiler-generated top-level `Program` class. Alias it (`using ProgramEntity = backend.Entities.Programs.Program;`) wherever both are in scope, including `WebApplicationFactory<Program>` in future integration tests.
+- The program entity is named `TrainingProgram` (table `Programs`) so it never collides with the compiler-generated top-level `Program` class, which integration tests need for `WebApplicationFactory<Program>`. Its DTO and enum keep the `Program` prefix (`ProgramSync`, `ProgramType`).
 
 ### Entities
 
@@ -28,12 +28,12 @@ Synced (`: SyncEntity`, client-generated `Id`, `UserId` owner, `Create` + whole-
 
 | Entity | Parent | Notes |
 |---|---|---|
-| `User` | none | `Id` is the Supabase user id. Sync only touches `Gender`, `Weight`, `Measurement`. Username, email, provider, avatar and `Role` are server-owned, and sync can never tombstone a user. |
+| `User` | none | `Id` is the Supabase user id. A username has no whitespace or control characters; letters, digits and special characters are allowed, up to 30 characters, case-insensitively unique. Sync only touches `Gender`, `Weight`, `Measurement`. Username, email, provider, avatar and `Role` are server-owned, and sync can never tombstone a user. |
 | `Goal` | none | |
-| `Movement` | none | Keywords are trimmed, lower-cased, de-duplicated, max 20. |
-| `Program` | none | |
+| `Movement` | none | Only the user's custom movements; the built-in library lives on the client. Custom movements sync so they appear on every device. Keywords are trimmed, lower-cased, de-duplicated, max 20. |
+| `TrainingProgram` | none | |
 | `ProgramBlock` | `Program` | Name is optional. |
-| `Workout` | `ProgramBlock` (optional) | `BlockId` is null for a workout outside any program. |
+| `Workout` | `ProgramBlock` (optional) | `BlockId` is null for a workout outside any program. `Name` is optional and may be blank. `CreatedAt` is set by the device, clamped and normalised like other client times, and never changed by later syncs. |
 | `Exercise` | `Workout` | `MovementId` is a soft reference (no foreign key) and `Name` is a snapshot, so purging a movement tombstone never breaks exercise history. |
 | `ExerciseSet` | `Exercise` | `Order` sequences sets. Weight, reps and RIR are nullable for planned sets. RIR is 0 to 10 and rest time 0 to 3600 seconds. |
 
@@ -42,7 +42,7 @@ A parent id is fixed when the record is created. `ApplySync` throws if a snapsho
 Online-only (not synced, created through ordinary endpoints, `Create(..., now)`, server-generated ids):
 
 - `Friendship`: only the receiver can `Accept` a pending request; either participant can `Block`; the blocker is recorded in `BlockedById`. Cancel, decline, unfriend and unblock all delete the row, and `CanRemove(actorId)` says whether a caller may (a block can only be lifted by the blocker). A friendship is unique per pair in either direction (expression index `UX_Friendships_Pair` on `LEAST/GREATEST`, created by raw SQL in the migration).
-- `ProgramShare`: `ShareAccess` is `Download` or `Collab`. Unique per `(ProgramId, ReceiverId)`. Revoking deletes the row.
+- `ProgramShare`: `ShareAccess` is `Download` or `Collab`. Unique per `(ProgramId, ReceiverId)`. Revoking deletes the row. Only `Download` is in scope: the receiver copies the program into their own account. `Collab` is reserved for a possible future feature and has no behaviour.
 - `Notification`: an inbox pointer (`ReceiverId`, `SenderId`, `Type`, `TargetId`, `ReadAt`). State lives on the target. Unique per `(ReceiverId, Type, TargetId)` so a retried request cannot duplicate it. Read notifications older than 30 days are deleted when the receiver fetches their inbox.
 
 ### Rules the sync handler must enforce
@@ -101,7 +101,7 @@ POST /sync
 
 ### Status
 
-Done: `SyncEntity.BeginSync` (last-write-wins, clamping, UTC normalisation), `Create` / `ApplySync` for every synced entity, the online-only entities, the DbContext and its migrations (`Initial`, `AddRemainingEntities`), and unit tests for all of it.
+Done: `SyncEntity.BeginSync` (last-write-wins, clamping, UTC normalisation), `Create` / `ApplySync` for every synced entity, the online-only entities, the DbContext and its migrations (`Initial`, `AddRemainingEntities`, `AddWorkoutNameAndCreatedAt`), and unit tests for all of it.
 
 Not yet built: the `Features/Sync` endpoint and its handler (including the parent-ownership checks above), JWT validation, the pull query, the purge, the stale-device check, the online endpoints (friends, shares, notifications), and integration tests against a real Postgres. The migrations have been generated and scripted but not applied to a live database.
 

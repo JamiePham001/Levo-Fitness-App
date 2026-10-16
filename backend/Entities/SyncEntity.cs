@@ -18,10 +18,7 @@ public abstract class SyncEntity
         Guard.NotEmpty(deviceId, "DeviceId");
         if (clientUpdateAt == default) throw new ArgumentException("ClientUpdateAt is required.");
 
-        // A device with its clock far in the future must not win every later conflict.
-        var client = ToUtc(clientUpdateAt);
-        var latest = ToUtc(now) + ClockSkewTolerance;
-        if (client > latest) client = latest;
+        var client = ClampClientTime(clientUpdateAt, now);
 
         if (client <= ClientUpdateAt) return false;
 
@@ -32,7 +29,15 @@ public abstract class SyncEntity
         return true;
     }
 
-    // Npgsql only writes UTC values to timestamptz.
+    // A device with its clock far in the future must not win every later conflict, so client times
+    // are capped at now + tolerance. Normalised to UTC because Npgsql only writes UTC to timestamptz.
+    protected static DateTime ClampClientTime(DateTime value, DateTime now)
+    {
+        var latest = ToUtc(now) + ClockSkewTolerance;
+        var utc = ToUtc(value);
+        return utc > latest ? latest : utc;
+    }
+
     private static DateTime ToUtc(DateTime value) => value.Kind switch
     {
         DateTimeKind.Utc => value,

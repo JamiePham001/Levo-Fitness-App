@@ -25,13 +25,23 @@ public class User : SyncEntity
         var user = new User
         {
             Id = dto.Id,
-            Username = Guard.Text(username, 30, "Username"),
+            Username = ValidUsername(username),
             Email = Guard.Text(email, 320, "Email"),
             AvatarUrl = Guard.OptionalText(avatarUrl, 2048, "AvatarUrl"),
             Provider = providerName
         };
         user.ApplySync(dto, deviceId, now);
         return user;
+    }
+
+    // Letters, digits and special characters are allowed; whitespace and control characters are not.
+    // The value is stored as typed (not trimmed), so surrounding spaces are rejected rather than dropped.
+    private static string ValidUsername(string? username)
+    {
+        if (string.IsNullOrEmpty(username)) throw new ArgumentException("Username cannot be empty.");
+        if (username.Length > 30) throw new ArgumentException("Username cannot exceed 30 characters.");
+        if (username.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))) throw new ArgumentException("Username cannot contain whitespace.");
+        return username;
     }
 
     // Only the client-owned profile fields. Identity fields and Role are server-owned, and a user

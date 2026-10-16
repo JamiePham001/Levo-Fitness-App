@@ -6,12 +6,11 @@ using backend.Entities.Goals;
 using backend.Entities.Movements;
 using backend.Entities.Notifications;
 using backend.Entities.ProgramBlocks;
+using backend.Entities.Programs;
 using backend.Entities.ProgramShares;
 using backend.Entities.Users;
 using backend.Entities.Workouts;
 using Microsoft.EntityFrameworkCore;
-// Aliased because the generated top-level Program class would otherwise win the name lookup.
-using ProgramEntity = backend.Entities.Programs.Program;
 
 namespace backend.Database;
 
@@ -20,7 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<Movement> Movements => Set<Movement>();
-    public DbSet<ProgramEntity> Programs => Set<ProgramEntity>();
+    public DbSet<TrainingProgram> Programs => Set<TrainingProgram>();
     public DbSet<ProgramBlock> ProgramBlocks => Set<ProgramBlock>();
     public DbSet<Workout> Workouts => Set<Workout>();
     public DbSet<Exercise> Exercises => Set<Exercise>();
@@ -52,7 +51,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Synced entities: client-generated ids, an owning user, and the pull and purge indexes.
         ConfigureSyncEntity<Goal>(modelBuilder);
         ConfigureSyncEntity<Movement>(modelBuilder);
-        ConfigureSyncEntity<ProgramEntity>(modelBuilder);
+        ConfigureSyncEntity<TrainingProgram>(modelBuilder);
         ConfigureSyncEntity<ProgramBlock>(modelBuilder);
         ConfigureSyncEntity<Workout>(modelBuilder);
         ConfigureSyncEntity<Exercise>(modelBuilder);
@@ -69,7 +68,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(m => m.Name).HasMaxLength(100).IsRequired();
         });
 
-        modelBuilder.Entity<ProgramEntity>(e =>
+        modelBuilder.Entity<TrainingProgram>(e =>
         {
             e.Property(p => p.Name).HasMaxLength(100).IsRequired();
             e.Property(p => p.Type).HasConversion<string>().HasMaxLength(20);
@@ -78,11 +77,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<ProgramBlock>(e =>
         {
             e.Property(b => b.Name).HasMaxLength(100);
-            e.HasOne<ProgramEntity>().WithMany().HasForeignKey(b => b.ProgramId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<TrainingProgram>().WithMany().HasForeignKey(b => b.ProgramId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Workout>(e =>
         {
+            e.Property(w => w.Name).HasMaxLength(100);
             e.HasOne<ProgramBlock>().WithMany().HasForeignKey(w => w.BlockId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -118,7 +118,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(s => s.Id);
             e.Property(s => s.Id).ValueGeneratedNever();
             e.Property(s => s.Access).HasConversion<string>().HasMaxLength(10);
-            e.HasOne<ProgramEntity>().WithMany().HasForeignKey(s => s.ProgramId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<TrainingProgram>().WithMany().HasForeignKey(s => s.ProgramId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<User>().WithMany().HasForeignKey(s => s.ReceiverId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<User>().WithMany().HasForeignKey(s => s.SenderId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(s => new { s.ProgramId, s.ReceiverId }).IsUnique();

@@ -17,7 +17,7 @@ public class UserTests
     public void CreateOAuth_CombinesTokenValuesAndSnapshot()
     {
         var user = NewUser(Dto(gender: Gender.Female, weight: 62.5, measurement: Measurement.Imperial),
-            username: "  Sam  ", email: "sam@example.com", provider: " Apple ");
+            username: "Sam", email: "sam@example.com", provider: " Apple ");
 
         Assert.Equal(UserId, user.Id);
         Assert.Equal("Sam", user.Username);
@@ -50,6 +50,31 @@ public class UserTests
         Assert.Throws<ArgumentException>(() => NewUser(username: value));
         Assert.Throws<ArgumentException>(() => NewUser(email: value));
     }
+
+    [Theory]
+    [InlineData("sam")]
+    [InlineData("Sam_99")]
+    [InlineData("s")]
+    [InlineData("sam.lee-1")]
+    [InlineData("sam!@#$%^&*()+=~")]
+    [InlineData("ünïcödé")]
+    public void Username_AllowsLettersDigitsAndSpecialCharacters(string username)
+        => Assert.Equal(username, NewUser(username: username).Username);
+
+    [Theory]
+    [InlineData("sam lee")]
+    [InlineData(" sam")]
+    [InlineData("sam ")]
+    [InlineData("sam\tlee")]
+    [InlineData("sam\nlee")]
+    [InlineData("sam\u00A0lee")]
+    [InlineData("sam\u0000lee")]
+    public void Username_WithWhitespaceOrControlCharacters_IsRejected(string username)
+        => Assert.Throws<ArgumentException>(() => NewUser(username: username));
+
+    [Fact]
+    public void UsernameOfExactlyThirtyCharacters_IsAccepted()
+        => Assert.Equal(30, NewUser(username: new string('a', 30)).Username.Length);
 
     [Fact]
     public void OverlongUsername_IsRejected()

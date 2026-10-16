@@ -5,9 +5,9 @@ namespace backend.Tests;
 
 public class WorkoutSyncTests
 {
-    private static WorkoutSync Dto(Guid? id = null, int order = 0, Guid? blockId = null,
-        DateTime? clientUpdateAt = null, DateTime? deletedAt = null)
-        => new(id ?? Guid.NewGuid(), order, blockId, deletedAt, clientUpdateAt ?? T0);
+    private static WorkoutSync Dto(Guid? id = null, string? name = "Push Day", int order = 0, Guid? blockId = null,
+        DateTime? createdAt = null, DateTime? clientUpdateAt = null, DateTime? deletedAt = null)
+        => new(id ?? Guid.NewGuid(), name, order, blockId, createdAt ?? T0, deletedAt, clientUpdateAt ?? T0);
 
     [Fact]
     public void Create_SetsBlockOwnerAndOrder()
@@ -90,5 +90,60 @@ public class WorkoutSyncTests
         workout.ApplySync(Dto(id, clientUpdateAt: T0.AddMinutes(1), deletedAt: T0.AddMinutes(1)), DeviceA, T0.AddMinutes(1));
 
         Assert.Equal(T0.AddMinutes(1), workout.DeletedAt);
+    }
+
+    [Fact]
+    public void Create_CopiesNameAndCreatedAt()
+    {
+        var workout = Workout.Create(UserId, Dto(name: "  Leg Day ", createdAt: T0.AddHours(-2)), DeviceA, T0);
+
+        Assert.Equal("Leg Day", workout.Name);
+        Assert.Equal(T0.AddHours(-2), workout.CreatedAt);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Name_IsOptional(string? name)
+        => Assert.Null(Workout.Create(UserId, Dto(name: name), DeviceA, T0).Name);
+
+    [Fact]
+    public void NameLongerThanColumn_IsRejected()
+        => Assert.Throws<ArgumentException>(() => Workout.Create(UserId, Dto(name: new string('a', 101)), DeviceA, T0));
+
+    [Fact]
+    public void Create_RequiresCreatedAt()
+        => Assert.Throws<ArgumentException>(() => Workout.Create(UserId, Dto() with { CreatedAt = default }, DeviceA, T0));
+
+    [Fact]
+    public void CreatedAt_InTheFuture_IsClamped()
+    {
+        var workout = Workout.Create(UserId, Dto(createdAt: T0.AddDays(30)), DeviceA, T0);
+
+        Assert.Equal(T0 + backend.Entities.SyncEntity.ClockSkewTolerance, workout.CreatedAt);
+    }
+
+    [Fact]
+    public void CreatedAt_IsNormalisedToUtc()
+    {
+        var local = new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Local);
+
+        var workout = Workout.Create(UserId, Dto(createdAt: local), DeviceA, T0);
+
+        Assert.Equal(DateTimeKind.Utc, workout.CreatedAt.Kind);
+        Assert.Equal(local.ToUniversalTime(), workout.CreatedAt);
+    }
+
+    [Fact]
+    public void ApplySync_UpdatesNameButNeverCreatedAt()
+    {
+        var id = Guid.NewGuid();
+        var workout = Workout.Create(UserId, Dto(id, name: "Old", createdAt: T0), DeviceA, T0);
+
+        workout.ApplySync(Dto(id, name: null, createdAt: T0.AddDays(5), clientUpdateAt: T0.AddMinutes(1)), DeviceA, T0.AddMinutes(1));
+
+        Assert.Null(workout.Name);
+        Assert.Equal(T0, workout.CreatedAt);
     }
 }

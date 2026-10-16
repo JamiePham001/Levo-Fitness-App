@@ -1,6 +1,6 @@
 namespace backend.Entities.Programs;
 
-public class Program : SyncEntity
+public class TrainingProgram : SyncEntity
 {
     // Client-generated so programs can be created offline.
     public Guid Id { get; private set; }
@@ -9,11 +9,11 @@ public class Program : SyncEntity
     public string Name { get; private set; } = default!;
     public ProgramType Type { get; private set; } = ProgramType.Split;
 
-    public static Program Create(Guid userId, ProgramSync dto, Guid deviceId, DateTime now)
+    public static TrainingProgram Create(Guid userId, ProgramSync dto, Guid deviceId, DateTime now)
     {
         Guard.NotEmpty(dto.Id, "Id");
         Guard.NotEmpty(userId, "UserId");
-        var program = new Program { Id = dto.Id, UserId = userId };
+        var program = new TrainingProgram { Id = dto.Id, UserId = userId };
         program.ApplySync(dto, deviceId, now);
         return program;
     }
