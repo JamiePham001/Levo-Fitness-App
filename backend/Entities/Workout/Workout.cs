@@ -19,7 +19,7 @@ public class Workout : SyncEntity
         Guard.NotEmpty(userId, "UserId");
         if (dto.BlockId == Guid.Empty) throw new ArgumentException("BlockId cannot be empty.");
         if (dto.CreatedAt == default) throw new ArgumentException("CreatedAt is required.");
-        var workout = new Workout { Id = dto.Id, UserId = userId, BlockId = dto.BlockId, CreatedAt = ClampClientTime(dto.CreatedAt, now) };
+        var workout = new Workout { Id = dto.Id, UserId = userId, BlockId = dto.BlockId, CreatedAt = dto.CreatedAt };
         workout.ApplySync(dto, deviceId, now);
         return workout;
     }
