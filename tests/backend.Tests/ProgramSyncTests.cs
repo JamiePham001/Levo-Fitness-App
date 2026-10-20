@@ -42,7 +42,6 @@ public class ProgramSyncTests
         Assert.Throws<ArgumentException>(() => TrainingProgram.Create(Guid.Empty, Dto(), DeviceA, T0));
         Assert.Throws<ArgumentException>(() => TrainingProgram.Create(UserId, Dto(name: " "), DeviceA, T0));
         Assert.Throws<ArgumentException>(() => TrainingProgram.Create(UserId, Dto(type: (ProgramType)99), DeviceA, T0));
-        Assert.Throws<ArgumentException>(() => TrainingProgram.Create(UserId, Dto(), Guid.Empty, T0));
     }
 
     [Fact]

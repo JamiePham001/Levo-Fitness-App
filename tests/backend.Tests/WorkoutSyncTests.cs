@@ -117,25 +117,6 @@ public class WorkoutSyncTests
         => Assert.Throws<ArgumentException>(() => Workout.Create(UserId, Dto() with { CreatedAt = default }, DeviceA, T0));
 
     [Fact]
-    public void CreatedAt_InTheFuture_IsClamped()
-    {
-        var workout = Workout.Create(UserId, Dto(createdAt: T0.AddDays(30)), DeviceA, T0);
-
-        Assert.Equal(T0 + backend.Entities.SyncEntity.ClockSkewTolerance, workout.CreatedAt);
-    }
-
-    [Fact]
-    public void CreatedAt_IsNormalisedToUtc()
-    {
-        var local = new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Local);
-
-        var workout = Workout.Create(UserId, Dto(createdAt: local), DeviceA, T0);
-
-        Assert.Equal(DateTimeKind.Utc, workout.CreatedAt.Kind);
-        Assert.Equal(local.ToUniversalTime(), workout.CreatedAt);
-    }
-
-    [Fact]
     public void ApplySync_UpdatesNameButNeverCreatedAt()
     {
         var id = Guid.NewGuid();

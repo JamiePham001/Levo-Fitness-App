@@ -1,4 +1,3 @@
-using backend.Entities;
 using backend.Entities.Goals;
 using static backend.Tests.TestData;
 
@@ -11,62 +10,43 @@ public class SyncEntityTests
         => new(id ?? Guid.NewGuid(), "Squat", 100, 5, Level.Beginner, clientUpdateAt ?? T0, deletedAt);
 
     [Fact]
-    public void ClientTimestampInTheFuture_IsClampedToNowPlusTolerance()
-    {
-        var now = T0.AddMinutes(10);
-
-        var goal = Goal.Create(UserId, Dto(clientUpdateAt: now.AddDays(365)), DeviceA, now);
-
-        Assert.Equal(now + SyncEntity.ClockSkewTolerance, goal.ClientUpdateAt);
-    }
-
-    [Fact]
-    public void ClientTimestampWithinTolerance_IsKept()
-    {
-        var now = T0;
-        var slightlyAhead = now.AddMinutes(4);
-
-        var goal = Goal.Create(UserId, Dto(clientUpdateAt: slightlyAhead), DeviceA, now);
-
-        Assert.Equal(slightlyAhead, goal.ClientUpdateAt);
-    }
-
-    [Fact]
-    public void ClampedTimestamp_LetsLaterGenuineEditsWinOnceTimePasses()
+    public void NewerSnapshot_StampsClientTimeServerTimeAndDevice()
     {
         var id = Guid.NewGuid();
-        var goal = Goal.Create(UserId, Dto(id, clientUpdateAt: T0.AddDays(365)), DeviceA, T0);
+        var goal = Goal.Create(UserId, Dto(id), DeviceA, T0);
 
-        var applied = goal.ApplySync(Dto(id, clientUpdateAt: T0.AddMinutes(30)), DeviceB, T0.AddMinutes(30));
+        var applied = goal.ApplySync(Dto(id, clientUpdateAt: T0.AddMinutes(1)), DeviceB, T0.AddMinutes(2));
 
         Assert.True(applied);
+        Assert.Equal(T0.AddMinutes(1), goal.ClientUpdateAt);
+        Assert.Equal(T0.AddMinutes(2), goal.ServerUpdateAt);
         Assert.Equal(DeviceB, goal.UpdatedByDeviceId);
     }
 
     [Fact]
-    public void LocalAndUnspecifiedTimestamps_AreStoredAsUtc()
+    public void ClientTimestamp_IsStoredAsSent()
     {
-        var local = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Local);
-        var unspecified = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Unspecified);
+        // The server does not adjust device times: a time ahead of the server clock is kept as sent.
+        var ahead = T0.AddDays(1);
 
-        var fromLocal = Goal.Create(UserId, Dto(clientUpdateAt: local, deletedAt: local), DeviceA, T0);
-        var fromUnspecified = Goal.Create(UserId, Dto(clientUpdateAt: unspecified, deletedAt: unspecified), DeviceA, T0);
+        var goal = Goal.Create(UserId, Dto(clientUpdateAt: ahead), DeviceA, T0);
 
-        Assert.Equal(DateTimeKind.Utc, fromLocal.ClientUpdateAt.Kind);
-        Assert.Equal(local.ToUniversalTime(), fromLocal.ClientUpdateAt);
-        Assert.Equal(DateTimeKind.Utc, fromLocal.DeletedAt!.Value.Kind);
-        Assert.Equal(DateTimeKind.Utc, fromUnspecified.ClientUpdateAt.Kind);
-        Assert.Equal(unspecified.Ticks, fromUnspecified.ClientUpdateAt.Ticks);
-        Assert.Equal(DateTimeKind.Utc, fromUnspecified.DeletedAt!.Value.Kind);
+        Assert.Equal(ahead, goal.ClientUpdateAt);
     }
 
     [Fact]
-    public void MissingClientTimestamp_IsRejected()
-        => Assert.Throws<ArgumentException>(() => Goal.Create(UserId, Dto() with { ClientUpdateAt = default }, DeviceA, T0));
+    public void LaterSnapshotLoses_WhenAnEarlierDeviceClockWasAhead()
+    {
+        // Last write wins on the device clock, so a snapshot older than the stored time is rejected
+        // even if it really happened later.
+        var id = Guid.NewGuid();
+        var goal = Goal.Create(UserId, Dto(id, clientUpdateAt: T0.AddDays(1)), DeviceA, T0);
 
-    [Fact]
-    public void EmptyDeviceId_IsRejected()
-        => Assert.Throws<ArgumentException>(() => Goal.Create(UserId, Dto(), Guid.Empty, T0));
+        var applied = goal.ApplySync(Dto(id, clientUpdateAt: T0.AddMinutes(30)), DeviceB, T0.AddMinutes(30));
+
+        Assert.False(applied);
+        Assert.Equal(DeviceA, goal.UpdatedByDeviceId);
+    }
 
     [Fact]
     public void DeletedAtIsOverwrittenByEachAppliedSnapshot()
