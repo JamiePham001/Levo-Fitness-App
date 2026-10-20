@@ -70,4 +70,21 @@ public class SyncEntityTests
 
         Assert.Equal(T0, goal.DeletedAt);
     }
+
+    [Fact]
+    public void CreatingWithoutAClientTimestamp_IsRejectedInsteadOfReturningABlankEntity()
+        => Assert.Throws<ArgumentException>(() => Goal.Create(UserId, Dto() with { ClientUpdateAt = default }, DeviceA, T0));
+
+    [Fact]
+    public void UpdatingWithoutAClientTimestamp_IsRejectedAndChangesNothing()
+    {
+        var id = Guid.NewGuid();
+        var goal = Goal.Create(UserId, Dto(id), DeviceA, T0);
+
+        Assert.Throws<ArgumentException>(() => goal.ApplySync(Dto(id) with { Name = "Changed", ClientUpdateAt = default }, DeviceB, T0.AddMinutes(1)));
+
+        Assert.Equal("Squat", goal.Name);
+        Assert.Equal(T0, goal.ClientUpdateAt);
+        Assert.Equal(DeviceA, goal.UpdatedByDeviceId);
+    }
 }

@@ -18,6 +18,8 @@ public abstract class SyncEntity
     // Last-write-wins: false (skip the record) if the incoming snapshot isn't newer than what we hold.
     protected bool BeginSync(DateTime clientUpdateAt, DateTime? deletedAt, Guid deviceId, DateTime now)
     {
+        if (clientUpdateAt == default) throw new ArgumentException("ClientUpdateAt is required.");
+
         // if the incoming snapshot is older than what we hold, skip it.
         // this prevents a race condition where two clients update at the same time
         // and both send their updates to the server.  the first one will win,
