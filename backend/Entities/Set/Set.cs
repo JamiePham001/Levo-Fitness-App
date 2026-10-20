@@ -27,6 +27,9 @@ public class ExerciseSet : SyncEntity
         return set;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public SetSync ToSync() => new(Id: Id, ExerciseId: ExerciseId, Order: Order, Weight: Weight, Reps: Reps, RIR: RIR, RestTime: RestTime, Completed: Completed, DeletedAt: DeletedAt, ClientUpdateAt: ClientUpdateAt);
+
     public bool ApplySync(SetSync dto, Guid deviceId, DateTime now)
     {
         if (dto.ExerciseId != ExerciseId) throw new ArgumentException("A set cannot move to another exercise.");

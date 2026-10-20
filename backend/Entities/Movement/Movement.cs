@@ -19,6 +19,9 @@ public class Movement : SyncEntity
         return movement;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public MovementSync ToSync() => new(Id: Id, Name: Name, Keywords: [.. Keywords], ClientUpdateAt: ClientUpdateAt, DeletedAt: DeletedAt);
+
     public bool ApplySync(MovementSync dto, Guid deviceId, DateTime now)
     {
         var name = Guard.Text(dto.Name, 100, "Name");

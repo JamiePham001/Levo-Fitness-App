@@ -18,6 +18,9 @@ public class TrainingProgram : SyncEntity
         return program;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public ProgramSync ToSync() => new(Id: Id, Name: Name, Type: Type, ClientUpdateAt: ClientUpdateAt, DeletedAt: DeletedAt);
+
     public bool ApplySync(ProgramSync dto, Guid deviceId, DateTime now)
     {
         var name = Guard.Text(dto.Name, 100, "Name");

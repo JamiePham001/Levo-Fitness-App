@@ -44,6 +44,9 @@ public class User : SyncEntity
         return username;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public UserSync ToSync() => new(Id: Id, Gender: Gender, Weight: Weight, Measurement: Measurement, ClientUpdateAt: ClientUpdateAt);
+
     // Only the client-owned profile fields. Identity fields and Role are server-owned, and a user
     // cannot tombstone their own profile through sync (account deletion has its own endpoint).
     public bool ApplySync(UserSync dto, Guid deviceId, DateTime now)

@@ -20,6 +20,9 @@ public class ProgramBlock : SyncEntity
         return block;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public BlockSync ToSync() => new(Id: Id, ProgramId: ProgramId, Name: Name, Order: Order, DeletedAt: DeletedAt, ClientUpdateAt: ClientUpdateAt);
+
     public bool ApplySync(BlockSync dto, Guid deviceId, DateTime now)
     {
         if (dto.ProgramId != ProgramId) throw new ArgumentException("A block cannot move to another program.");

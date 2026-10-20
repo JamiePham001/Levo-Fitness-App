@@ -20,6 +20,9 @@ public class Goal : SyncEntity
         return goal;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public GoalSync ToSync() => new(Id: Id, Name: Name, Weight: Weight, Reps: Reps, Level: Level, ClientUpdateAt: ClientUpdateAt, DeletedAt: DeletedAt);
+
     // Overwrites every client-owned field from the snapshot. Returns false if the snapshot is stale.
     public bool ApplySync(GoalSync dto, Guid deviceId, DateTime now)
     {

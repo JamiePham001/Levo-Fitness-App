@@ -24,6 +24,9 @@ public class Exercise : SyncEntity
         return exercise;
     }
 
+    // The snapshot sent to clients: the inverse of ApplySync.
+    public ExerciseSync ToSync() => new(Id: Id, WorkoutId: WorkoutId, MovementId: MovementId, Name: Name, Notes: Notes, Order: Order, Completed: Completed, ClientUpdateAt: ClientUpdateAt, DeletedAt: DeletedAt);
+
     public bool ApplySync(ExerciseSync dto, Guid deviceId, DateTime now)
     {
         if (dto.WorkoutId != WorkoutId) throw new ArgumentException("An exercise cannot move to another workout.");
