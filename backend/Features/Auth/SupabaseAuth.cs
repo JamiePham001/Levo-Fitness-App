@@ -13,11 +13,11 @@ public static class SupabaseAuth
     public static IServiceCollection AddSupabaseAuth(this IServiceCollection services, string issuers,
         IConfigurationManager<OpenIdConnectConfiguration>? signingKeys = null)
     {
-        var validIssuers = issuers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var validIssuers = ParseIssuers(issuers);
         if (validIssuers.Length == 0) throw new ArgumentException("At least one issuer is required.", nameof(issuers));
 
         signingKeys ??= new ConfigurationManager<OpenIdConnectConfiguration>(
-            validIssuers[0].TrimEnd('/') + "/.well-known/jwks.json",
+            validIssuers[0] + JwksPath,
             new JwksRetriever(),
             new HttpDocumentRetriever { RequireHttps = true })
         {
@@ -43,6 +43,18 @@ public static class SupabaseAuth
         services.AddAuthorization();
         return services;
     }
+
+    private const string JwksPath = "/.well-known/jwks.json";
+
+    // The setting holds one or more comma-separated issuers. It may also be given as the full JWKS address
+    // (https://<project>.supabase.co/auth/v1/.well-known/jwks.json): the issuer in a token is the part before
+    // /.well-known, so that suffix and any trailing slash are dropped.
+    public static string[] ParseIssuers(string issuers)
+        => [.. issuers
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(issuer => issuer.EndsWith(JwksPath, StringComparison.OrdinalIgnoreCase) ? issuer[..^JwksPath.Length] : issuer)
+            .Select(issuer => issuer.TrimEnd('/'))
+            .Where(issuer => issuer.Length > 0)];
 
     // A JWKS document is not an OpenID configuration, so wrap its keys in one for the JWT bearer handler.
     private sealed class JwksRetriever : IConfigurationRetriever<OpenIdConnectConfiguration>
