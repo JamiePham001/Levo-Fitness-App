@@ -1,15 +1,17 @@
 
 using backend.Database;
 using backend.Features.Auth;
+using backend.Features.Sync;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Secrets come from user secrets locally (loaded in Development only), for example:
-//   dotnet user-secrets set "SupaBase:ConnectionString" "<postgresql:// or Npgsql connection string>"
-//   dotnet user-secrets set "SupaBase:ValidIssuers" "https://<project>.supabase.co/auth/v1"
-var connectionString = builder.Configuration["SupaBase:ConnectionString"]
-    ?? throw new InvalidOperationException("SupaBase:ConnectionString is not set.");
+// prod database
+// var connectionString = builder.Configuration["SupaBase:ConnectionString"]
+//     ?? throw new InvalidOperationException("SupaBase:ConnectionString is not set.");
+// dev database
+var connectionString = builder.Configuration["Local:ConnectionString"]
+    ?? throw new InvalidOperationException("Local:ConnectionString is not set.");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(PostgresConnectionString.Normalize(connectionString)));
 
 var validIssuers = builder.Configuration["SupaBase:ValidIssuers"]
@@ -37,6 +39,8 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapSync();
+
 var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
@@ -62,3 +66,6 @@ sealed record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+
+// Lets integration tests start the app with WebApplicationFactory<Program>.
+public partial class Program;

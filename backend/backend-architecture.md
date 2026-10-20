@@ -65,13 +65,20 @@ The client is offline-first (SQLite). All synced data is private to one user. Sy
 ### Request and response
 
 ```
-POST /sync
-{ deviceId, lastPulledAt, changes: { goals: [GoalSync...], ... } }
+POST /sync   (Features/Sync)
+{ deviceId, cursor, changes: { user, goals, movements, programs, blocks, workouts, exercises, sets } }
 
 -> { cursor, hasMore, fullResyncRequired,
-     applied: [ids], rejected: [{ id, reason, serverVersion }],
-     changes: { goals: [...] } }
+     changes: { user, goals, movements, programs, blocks, workouts, exercises, sets } }
 ```
+
+Every list in `changes` is optional on the way in. The response always has every list (empty when nothing changed), and `user` is null when the profile did not change. Pushed and pulled records use the same `*Sync` types, and the server builds the pulled ones with each entity's `ToSync()`.
+
+Status codes: 401 without a valid token, 400 for a missing device id, a bad or future cursor, an invalid record, or a record whose parent does not exist (the same message whether the parent is missing or belongs to someone else), 403 when a record's id already belongs to another user, 404 when the caller has no profile row yet, 200 otherwise. Any 4xx leaves the database untouched, because nothing is saved until every record has passed.
+
+### The cursor
+
+The cursor is the server's bookmark for what a device has already received. It is an opaque string to clients: store the one from each response and send it back (`null` on a first sync). Today it is the UTC tick count of the moment the last pull started minus 10 seconds. The overlap catches rows from a transaction that was stamped before, but committed after, the previous pull; clients apply pulled rows idempotently, so a repeat is harmless. The server rejects a cursor that is unparsable or in the future, and answers `fullResyncRequired` (applying nothing) when it is older than 90 days, since tombstones older than that may have been purged. A request without a cursor is a first sync and pulls everything.
 
 `GoalSync` is a full snapshot of the client-owned fields plus `ClientUpdateAt` and `DeletedAt`. Creates, updates and deletes are all the same shape; a delete is a snapshot with `DeletedAt` set.
 
@@ -106,9 +113,9 @@ POST /sync
 
 ### Status
 
-Done: `SyncEntity.BeginSync` (last-write-wins, clamping, UTC normalisation), `Create` / `ApplySync` for every synced entity, the online-only entities, the DbContext and its migrations (`Initial`, `AddRemainingEntities`, `AddWorkoutNameAndCreatedAt`), and unit tests for all of it.
+Done: `Create` / `ApplySync` / `ToSync` for every synced entity, the online-only entities, the DbContext and its migrations, JWT validation, and the `POST /sync` endpoint (apply, ownership and parent checks, pull, cursor, stale-device check) with unit and in-memory integration tests.
 
-Not yet built: the `Features/Sync` endpoint and its handler (including the parent-ownership checks above), JWT validation, the pull query, the purge, the stale-device check, the online endpoints (friends, shares, notifications), and integration tests against a real Postgres. The migrations have been generated and scripted but not applied to a live database.
+Not yet built: per-record results (`applied` / `rejected`) so one bad record does not fail the whole request, paging (`hasMore` is always false), the tombstone purge, the online endpoints (friends, shares, notifications, profile creation), and integration tests against a real Postgres. Clamping and normalisation of client timestamps are not applied: `SyncEntity.BeginSync` stores device times as sent. The in-memory provider does not enforce foreign keys, unique indexes or `citext`, so those are untested.
 
 ## Database
 
