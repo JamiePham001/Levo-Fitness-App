@@ -42,14 +42,14 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Null(changes.user);
-        Assert.Empty(changes.goals!);
-        Assert.Empty(changes.movements!);
-        Assert.Empty(changes.programs!);
-        Assert.Empty(changes.blocks!);
-        Assert.Empty(changes.workouts!);
-        Assert.Empty(changes.exercises!);
-        Assert.Empty(changes.sets!);
+        Assert.Null(changes.User);
+        Assert.Empty(changes.Goals!);
+        Assert.Empty(changes.Movements!);
+        Assert.Empty(changes.Programs!);
+        Assert.Empty(changes.Blocks!);
+        Assert.Empty(changes.Workouts!);
+        Assert.Empty(changes.Exercises!);
+        Assert.Empty(changes.Sets!);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        var goal = Assert.Single(changes.goals!);
+        var goal = Assert.Single(changes.Goals!);
         Assert.Equal(GoalDto(id), goal);
     }
 
@@ -71,7 +71,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Empty(changes.goals!);
+        Assert.Empty(changes.Goals!);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Empty(changes.goals!);
+        Assert.Empty(changes.Goals!);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Equal([justAfterSince, atUntil], changes.goals!.Select(g => g.Id));
+        Assert.Equal([justAfterSince, atUntil], changes.Goals!.Select(g => g.Id));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, DateTime.MinValue, Until);
 
-        Assert.Single(changes.goals!);
+        Assert.Single(changes.Goals!);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Equal(deletedAt, Assert.Single(changes.goals!).DeletedAt);
+        Assert.Equal(deletedAt, Assert.Single(changes.Goals!).DeletedAt);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Equal([first, second, third], changes.goals!.Select(g => g.Id));
+        Assert.Equal([first, second, third], changes.Goals!.Select(g => g.Id));
     }
 
     [Fact]
@@ -164,14 +164,14 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Equal(Me, changes.user!.Id);
-        Assert.Single(changes.goals!);
-        Assert.Single(changes.movements!);
-        Assert.Single(changes.programs!);
-        Assert.Single(changes.blocks!);
-        Assert.Single(changes.workouts!);
-        Assert.Single(changes.exercises!);
-        Assert.Single(changes.sets!);
+        Assert.Equal(Me, changes.User!.Id);
+        Assert.Single(changes.Goals!);
+        Assert.Single(changes.Movements!);
+        Assert.Single(changes.Programs!);
+        Assert.Single(changes.Blocks!);
+        Assert.Single(changes.Workouts!);
+        Assert.Single(changes.Exercises!);
+        Assert.Single(changes.Sets!);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class SyncPullTests
 
         var changes = await SyncPull.BuildAsync(db, Me, DeviceA, Since, Until);
 
-        Assert.Null(changes.user);
+        Assert.Null(changes.User);
     }
 
     [Fact]

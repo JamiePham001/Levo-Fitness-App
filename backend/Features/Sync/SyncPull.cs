@@ -20,14 +20,14 @@ public static class SyncPull
         var sets = await Changed(db.ExerciseSets.AsNoTracking().Where(s => s.UserId == userId), since, until, deviceId).ToArrayAsync();
 
         return new SyncChanges(
-            user: profile?.ToSync(),
-            goals: [.. goals.Select(g => g.ToSync())],
-            movements: [.. movements.Select(m => m.ToSync())],
-            programs: [.. programs.Select(p => p.ToSync())],
-            blocks: [.. blocks.Select(b => b.ToSync())],
-            workouts: [.. workouts.Select(w => w.ToSync())],
-            exercises: [.. exercises.Select(e => e.ToSync())],
-            sets: [.. sets.Select(s => s.ToSync())]);
+            User: profile?.ToSync(),
+            Goals: [.. goals.Select(g => g.ToSync())],
+            Movements: [.. movements.Select(m => m.ToSync())],
+            Programs: [.. programs.Select(p => p.ToSync())],
+            Blocks: [.. blocks.Select(b => b.ToSync())],
+            Workouts: [.. workouts.Select(w => w.ToSync())],
+            Exercises: [.. exercises.Select(e => e.ToSync())],
+            Sets: [.. sets.Select(s => s.ToSync())]);
     }
 
     private static IQueryable<T> Changed<T>(IQueryable<T> rows, DateTime since, DateTime until, Guid deviceId) where T : SyncEntity

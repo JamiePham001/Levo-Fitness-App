@@ -13,7 +13,7 @@ ASP.NET Core (.NET 10) minimal API, EF Core + Npgsql on Postgres (Supabase in pr
 - Until the profile row exists, other endpoints must return a distinct "profile incomplete" response so the client can send the user back to the username step.
 - Configuration lives in user secrets locally (read only when `ASPNETCORE_ENVIRONMENT=Development`, which `launchSettings.json` sets; `dotnet run --no-launch-profile` runs as Production and sees none of them):
   - `SupaBase:ConnectionString`: a `postgresql://` URI or an Npgsql keyword string. URIs are converted by `PostgresConnectionString.Normalize` (SSL required).
-  - `SupaBase:ValidIssuers`: `https://<project>.supabase.co/auth/v1`; comma-separate several. The first one also locates the signing keys.
+  - `SupaBase:ValidIssuers`: `https://<project>.supabase.co/auth/v1`, comma-separated for several. The setting may instead hold the full JWKS address (`.../auth/v1/.well-known/jwks.json`): `SupabaseAuth.ParseIssuers` strips that suffix and any trailing slash, because the issuer in a token is the part before `/.well-known`. The first issuer also locates the signing keys.
 - Token validation is `AddSupabaseAuth` in `Features/Auth`. The project signs with an asymmetric key (ES256, P-256), so no secret is stored: the public keys are downloaded from `<issuer>/.well-known/jwks.json`, cached for an hour, and refreshed when a token names an unknown key, so key rotation needs no change here. Only ES256 is accepted (blocking `none` and HS256 algorithm-confusion tokens), and signature, issuer, audience `authenticated` and lifetime (no clock skew) are all required. `MapInboundClaims` is off so the user id is the `sub` claim.
 - The `x` and `y` values on Supabase's JWT Signing Keys page are the public key coordinates and are not secrets or HMAC keys; they are not used here because the JWKS endpoint serves the same key.
 - Supabase's direct connection host (`db.<ref>.supabase.co`) is IPv6-only. From IPv4-only networks, and from AWS Lambda unless it is set up for IPv6, use the pooler connection string (`aws-0-<region>.pooler.supabase.com`, user `postgres.<ref>`; port 5432 session mode or 6543 transaction mode).
@@ -69,12 +69,29 @@ POST /sync   (Features/Sync)
 { deviceId, cursor, changes: { user, goals, movements, programs, blocks, workouts, exercises, sets } }
 
 -> { cursor, hasMore, fullResyncRequired,
-     changes: { user, goals, movements, programs, blocks, workouts, exercises, sets } }
+     results: { user, goals, ..., sets },     // what happened to each record the client sent
+     changes: { user, goals, ..., sets } }    // what changed on the server since the cursor
 ```
 
 Every list in `changes` is optional on the way in. The response always has every list (empty when nothing changed), and `user` is null when the profile did not change. Pushed and pulled records use the same `*Sync` types, and the server builds the pulled ones with each entity's `ToSync()`.
 
-Status codes: 401 without a valid token, 400 for a missing device id, a bad or future cursor, an invalid record, or a record whose parent does not exist (the same message whether the parent is missing or belongs to someone else), 403 when a record's id already belongs to another user, 404 when the caller has no profile row yet, 200 otherwise. Any 4xx leaves the database untouched, because nothing is saved until every record has passed.
+The code is split by direction: `SyncPush` applies what the client sent, `SyncPull` builds what comes back, `SyncCursor` owns the bookmark, and `Sync` holds the endpoint and the contract types.
+
+### Per-record results
+
+Each record the client sends is judged on its own and appears in exactly one list of its table's result: `{ applied: [ids], rejected: [{ id, reason, message, serverVersion }] }`. One bad record never stops the others, and the applied ones are saved together in one `SaveChanges`.
+
+| reason | meaning | `serverVersion` |
+|---|---|---|
+| `stale` | the server already holds a snapshot at least as new (this is also what a re-sent, already applied record reports) | the server's record, so the client can replace its losing copy |
+| `invalid` | the record failed validation, including a missing `ClientUpdateAt` and an attempt to move a record to another parent | none |
+| `notOwner` | the id belongs to another user; the row is never touched | none |
+| `parentNotFound` | the parent is missing or not the user's (same reason and message for both) | none |
+| `notFound` | the profile row does not exist yet (the `user` record only) | none |
+
+Entities validate before they change, so a rejected record leaves no trace. A rejected record is the client's to fix or drop; a `stale` one is answered by `serverVersion`.
+
+Status codes for the request as a whole: 401 without a valid token, 400 for a missing device id or a bad or future cursor, 200 otherwise (including when some or all records were rejected).
 
 ### The cursor
 
@@ -113,9 +130,9 @@ The cursor is the server's bookmark for what a device has already received. It i
 
 ### Status
 
-Done: `Create` / `ApplySync` / `ToSync` for every synced entity, the online-only entities, the DbContext and its migrations, JWT validation, and the `POST /sync` endpoint (apply, ownership and parent checks, pull, cursor, stale-device check) with unit and in-memory integration tests.
+Done: `Create` / `ApplySync` / `ToSync` for every synced entity, the online-only entities, the DbContext and its migrations, JWT validation, and the `POST /sync` endpoint (apply with per-record results, ownership and parent checks, pull, cursor, stale-device check) with unit and in-memory integration tests.
 
-Not yet built: per-record results (`applied` / `rejected`) so one bad record does not fail the whole request, paging (`hasMore` is always false), the tombstone purge, the online endpoints (friends, shares, notifications, profile creation), and integration tests against a real Postgres. Clamping and normalisation of client timestamps are not applied: `SyncEntity.BeginSync` stores device times as sent. The in-memory provider does not enforce foreign keys, unique indexes or `citext`, so those are untested.
+Not yet built: paging (`hasMore` is always false), the tombstone purge, the online endpoints (friends, shares, notifications, profile creation), and integration tests against a real Postgres. Clamping and normalisation of client timestamps are not applied: `SyncEntity.BeginSync` stores device times as sent (it only rejects a missing one). The in-memory provider does not enforce foreign keys, unique indexes or `citext`, so those are untested. A user without a profile row cannot save any synced records against a real database (the foreign key to `Users`); profile creation at signup has to come first.
 
 ## Database
 
